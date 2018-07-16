@@ -1,0 +1,93 @@
+﻿using System.Collections;
+using System.Collections.Generic;
+using UnityEngine;
+
+public class Enemy : MonoBehaviour
+{
+
+    [SerializeField] private Transform exitPoint;
+    [SerializeField] private Transform[] waypoints;
+    [SerializeField] private float navigationUpdate;
+    [SerializeField] private int healthPoints;
+    [SerializeField] private int rewardAmount;
+    
+    private Animator anim;
+    private int target = 0;
+    private float navigationTime = 0f;
+    private Transform enemy;
+    private bool isDead = false;
+    private Collider2D enemyCollider;
+
+    public bool IsDead {
+        get {
+            return isDead;
+        }
+    }
+
+    void Start()
+    {
+        enemy = GetComponent<Transform>();
+        anim = GetComponent<Animator>();
+        enemyCollider = GetComponent<Collider2D>();
+        GameManager.Instance.RegisterEnemy(this);
+    }
+
+    void Update()
+    {
+        if (waypoints != null && !isDead)
+        {
+            navigationTime += Time.deltaTime;
+            if (navigationTime > navigationUpdate)
+            {
+                if (target < waypoints.Length)
+                {
+                    enemy.position = Vector2.MoveTowards(enemy.position, waypoints[target].position, navigationTime);
+                }
+                else {
+                    enemy.position = Vector2.MoveTowards(enemy.position, exitPoint.position, navigationTime);
+                }
+                navigationTime = 0;
+            }
+        }
+    }
+
+	void OnTriggerEnter2D(Collider2D other)
+	{
+        if (other.tag == "checkpoint"){
+            target += 1;
+        }
+        else if (other.tag == "Finish"){
+            GameManager.Instance.RoundEscaped += 1;
+            GameManager.Instance.TotalEscaped += 1;
+			GameManager.Instance.UnregisterEnemy(this);
+            GameManager.Instance.IsWaveOver();
+        }
+        else if (other.tag == "projectile"){
+            Projectile newP = other.gameObject.GetComponent<Projectile>();
+            EnemyHit(newP.AttackStrength);
+            Destroy(other.gameObject);
+        }
+	}
+
+    public void EnemyHit(int hitPoints){
+        
+        if (healthPoints - hitPoints > 0){
+            healthPoints -= hitPoints;
+            anim.Play("Hurt");
+            GameManager.Instance.AudioSource.PlayOneShot(SoundManager.Instance.Hit);
+        }
+        else{
+            anim.SetTrigger("didDie");
+            Die();
+        }
+    }
+
+    public void Die(){
+        isDead = true;
+        enemyCollider.enabled = false;
+        GameManager.Instance.TotalKilled += 1;
+        GameManager.Instance.AudioSource.PlayOneShot(SoundManager.Instance.Death);
+        GameManager.Instance.AddMoney(rewardAmount);
+        GameManager.Instance.IsWaveOver();
+    }
+}
